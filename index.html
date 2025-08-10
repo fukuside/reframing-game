@@ -9,6 +9,13 @@
     <meta name="theme-color" content="#0ea5e9"/>
     <link rel="manifest" href="/reframing-game/manifest.json">
 
+    <!-- iOS向けアイコン・metaタグ -->
+    <link rel="apple-touch-icon" sizes="192x192" href="/reframing-game/images/icons/icon-192x192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="/reframing-game/images/icons/icon-512x512.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Reframing Game">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Orbitron:wght@700&family=MedievalSharp&display=swap" rel="stylesheet">
@@ -270,10 +277,53 @@
     </style>
 </head>
 <body>
+<button id="install-btn" style="position:fixed;bottom:2rem;right:2rem;padding:1em 2em;background:#0ea5e9;color:#fff;border:none;border-radius:8px;box-shadow:0 2px 8px #0ea5e988;z-index:1000;display:none;cursor:pointer;font-size:1.1em;">インストール</button>
+<div id="sw-update" style="display:none;position:fixed;top:1rem;right:1rem;background:#f59e42;color:#fff;padding:0.7em 1.5em;border-radius:8px;box-shadow:0 2px 8px #f59e4299;z-index:1000;font-size:1em;">新バージョンがあります。<button id="reload-btn" style="margin-left:1em;background:#fff;color:#f59e42;border:none;padding:0.3em 1em;border-radius:4px;cursor:pointer;">リロード</button></div>
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
-            navigator.serviceWorker.register('/reframing-game/service-worker.js');
+                    let refreshing = false;
+                    navigator.serviceWorker.register('/reframing-game/service-worker.js').then(reg => {
+                        // SW更新通知
+                        if (reg.waiting) showUpdateBar(reg);
+                        reg.addEventListener('updatefound', () => {
+                            const newSW = reg.installing;
+                            newSW.addEventListener('statechange', () => {
+                                if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+                                    showUpdateBar(reg);
+                                }
+                            });
+                        });
+                    });
+                    navigator.serviceWorker.addEventListener('controllerchange', () => {
+                        if (refreshing) return;
+                        window.location.reload();
+                        refreshing = true;
+                    });
+                    function showUpdateBar(reg) {
+                        const bar = document.getElementById('sw-update');
+                        bar.style.display = 'block';
+                        document.getElementById('reload-btn').onclick = () => {
+                            reg.waiting.postMessage({type:'SKIP_WAITING'});
+                        };
+                    }
+
+                    // beforeinstallprompt & インストールボタン
+                    let deferredPrompt;
+                    const installBtn = document.getElementById('install-btn');
+                    window.addEventListener('beforeinstallprompt', (e) => {
+                        e.preventDefault();
+                        deferredPrompt = e;
+                        installBtn.style.display = 'block';
+                    });
+                    installBtn.addEventListener('click', async () => {
+                        installBtn.style.display = 'none';
+                        if (deferredPrompt) {
+                            deferredPrompt.prompt();
+                            await deferredPrompt.userChoice;
+                            deferredPrompt = null;
+                        }
+                    });
         });
     }
 </script>
