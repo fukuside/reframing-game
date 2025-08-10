@@ -358,10 +358,17 @@
     <div id="game-page" class="page hidden">
         <div id="game-container">
             <!-- Header: Score and Time -->
-            <div class="absolute top-4 left-4 stats">SCORE: <span id="score">0</span></div>
-            <div class="absolute top-12 left-4 stats text-lg text-amber-600">HI-SCORE: <span id="hi-score">0</span></div>
-            <div id="rank-display" class="absolute top-20 left-4 text-lg"></div>
-            <div class="absolute top-4 right-4 stats">TIME: <span id="time">20</span></div>
+            <div class="absolute top-4 left-4 stats">
+    SCORE: <span id="score">0</span>
+</div>
+<div class="absolute top-12 left-4 stats text-lg text-amber-600">
+    HI-SCORE: <span id="hi-score">0</span>
+    <a href="#" id="change-name-link" style="margin-left: 10px; font-size: 0.8em; color: blue; text-decoration: underline;">
+        名前を変更
+    </a>
+</div>
+<div id="rank-display" class="absolute top-20 left-4 text-lg"></div>
+<div class="absolute top-4 right-4 stats">TIME: <span id="time">20</span></div>
 
             <!-- Word Animation Area -->
             <div id="word-container">
@@ -728,35 +735,63 @@
             }
         }
 
-        function gameOver() {
-            isPlaying = false;
-            clearInterval(timerId);
-            wordEl.classList.add('paused-animation');
-            answerForm.classList.add('hidden');
-            
-            if(Tone.Transport.state === 'started') {
-                Tone.Transport.stop();
-            }
-            gamePattern.stop();
-            gameOverSynth.triggerAttackRelease(['C3', 'E3', 'G3'], '2n');
-            
-            modalTitle.textContent = 'ゲームオーバー';
-            modalText.textContent = `あなたの最終スコアは ${score} 点です！`;
-            
-            const hiScore = loadHiScore();
-            if (score > hiScore) {
-                localStorage.setItem(`reframingHiScore_${currentUsername}`, score);
-                newRecordTextEl.classList.remove('hidden');
-                loadHiScore();
-                const now = Tone.now();
-                newRecordSynth.triggerAttackRelease(['C5', 'E5', 'G5', 'C6'], '8n', now);
-                newRecordSynth.triggerAttackRelease(['E6'], '8n', now + 0.2);
-            } else {
-                newRecordTextEl.classList.add('hidden');
-            }
-            
-            modalOverlay.style.display = 'flex';
-        }
+        // Firestoreへ保存する関数 saveScore(name, score) が
+// すでに index.html の <script type="module"> 内にある前提です。
+
+async function gameOver() {
+  isPlaying = false;
+  clearInterval(timerId);
+  wordEl.classList.add('paused-animation');
+  answerForm.classList.add('hidden');
+
+  if (Tone.Transport.state === 'started') {
+    Tone.Transport.stop();
+  }
+  gamePattern.stop();
+  gameOverSynth.triggerAttackRelease(['C3', 'E3', 'G3'], '2n');
+
+  modalTitle.textContent = 'ゲームオーバー';
+  modalText.textContent = `あなたの最終スコアは ${score} 点です！`;
+
+  const hiScoreBefore = loadHiScore();   // 直前のハイスコア
+  let bestToSave = hiScoreBefore;
+
+  if (score > hiScoreBefore) {
+    // ローカルのハイスコアを更新
+    localStorage.setItem(`reframingHiScore_${currentUsername}`, score);
+    newRecordTextEl.classList.remove('hidden');
+    loadHiScore();
+
+    const now = Tone.now();
+    newRecordSynth.triggerAttackRelease(['C5', 'E5', 'G5', 'C6'], '8n', now);
+    newRecordSynth.triggerAttackRelease(['E6'], '8n', now + 0.2);
+
+    bestToSave = score; // 保存するのは更新後のハイスコア
+  } else {
+    newRecordTextEl.classList.add('hidden');
+  }
+
+  // 表示名（16文字まで）。currentUsername が無ければローカル保存名→匿名の順で。
+  const displayName =
+    (typeof currentUsername === 'string' && currentUsername) ||
+    localStorage.getItem('rg_username') ||
+    '匿名';
+
+  // Firestoreに「名前＋ベストスコア」を保存
+  if (typeof saveScore === 'function') {
+    try {
+      await saveScore(displayName.toString().slice(0,16), Number(bestToSave));
+    } catch (e) {
+      console.error('saveScore failed:', e);
+      // 失敗してもゲーム進行は止めない
+    }
+  } else {
+    console.warn('saveScore 関数が見つかりません。Firebaseのスクリプト読み込み順を確認してください。');
+  }
+
+  modalOverlay.style.display = 'flex';
+}
+
         
         function toggleMute() {
             isMuted = !isMuted;
@@ -850,6 +885,29 @@ const firebaseConfig = {
   appId: "1:1082764235640:web:fef4b92b13a80ecdf5ae8d",
   measurementId: "G-SX62V2ND76"
 };
+<script type="module">
+  // ...（あなたのFirebase初期化コード/関数の続き）
+
+  // ▼ 1回だけ名前を決めて localStorage に保存
+  function getDisplayName() {
+    let name = localStorage.getItem("rg_username");
+    if (!name) {
+      name = prompt("ランキングに表示する名前（16文字まで）");
+      if (name) localStorage.setItem("rg_username", name.slice(0,16));
+    }
+    return localStorage.getItem("rg_username") || "匿名";
+  }
+
+  // ページ初期化時に名前だけ確保
+  getDisplayName();
+
+  // （任意）「名前を変更」したい時に呼ぶ関数
+  window.changeDisplayName = () => {
+    localStorage.removeItem("rg_username");
+    getDisplayName();
+  };
+</script>
+
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -958,6 +1016,18 @@ const analytics = getAnalytics(app);
 
   // 初期表示
   loadRanking();
+  // 名前変更リンクの動作
+document.getElementById('change-name-link').addEventListener('click', function (e) {
+    e.preventDefault();
+    const newName = prompt('新しい名前を入力してください（16文字以内）');
+    if (newName && newName.trim() !== '') {
+        const trimmed = newName.trim().slice(0, 16);
+        localStorage.setItem('rg_username', trimmed);
+        alert(`名前を「${trimmed}」に変更しました！`);
+        location.reload(); // 再読み込みで反映
+    }
+});
+
 </script>
 
 <small style="display:block;text-align:center;color:#aab;margin:12px 0;">
