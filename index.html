@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>言葉のリフレーミングゲーム</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#0ea5e9"/>
+    <link rel="manifest" href="manifest.json">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Orbitron:wght@700&family=MedievalSharp&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #fdf6e3;
+            color: #586e75;
+            overflow: hidden;
+        }
+        .page {
+            height: 100vh;
+            width: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            transition: opacity 0.5s ease-in-out;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        #login-page, #top-page {
+            background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url("data:image/svg+xml,%3csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg' style='image-rendering: pixelated;'%3e%3crect fill='%2377b5fe' x='0' y='0' width='100' height='60'/%3e%3crect fill='%23fecb2e' x='10' y='10' width='20' height='20'/%3e%3crect fill='%2342a5f5' x='0' y='60' width='100' height='40'/%3e%3crect fill='%2320663f' x='5' y='50' width='15' height='10'/%3e%3crect fill='%232E8B57' x='25' y='45' width='20' height='15'/%3e%3crect fill='%2320663f' x='50' y='48' width='10' height='12'/%3e%3crect fill='%232E8B57' x='65' y='42' width='15' height='18'/%3e%3crect fill='%2320663f' x='85' y='52' width='10' height='8'/%3e%3c/svg%3e");
+            background-size: cover;
+            background-position: center;
+            text-align: center;
+        }
+        #hero-svg {
+            width: 150px;
+            height: auto;
+            margin-bottom: 2rem;
+            animation: hero-bob 2s ease-in-out infinite;
+        }
+        @keyframes hero-bob {
+            0% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-8px);
+            }
+            100% {
+                transform: translateY(0);
+            }
+        }
+        #top-page h1, #login-page h1 {
+            font-family: 'MedievalSharp', cursive;
+            font-size: 3.5rem;
+            color: #fdf6e3;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.7);
+        }
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            width: 100%;
+            position: relative;
+            perspective: 800px;
+        }
+        #word-container {
+            position: absolute;
+            top: 25%;
+            width: 100%;
+            height: 100px;
+            perspective: 500px;
+        }
+        #word {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #dc322f;
+            text-shadow: 0 0 8px rgba(220, 50, 47, 0.5);
+            transform-style: preserve-3d;
+            animation: come-closer 20s linear forwards;
+        }
+        @keyframes come-closer {
+            from {
+                transform: translateZ(-2000px) scale(1.1);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            to {
+                transform: translateZ(100px) scale(1.2);
+                opacity: 1;
+            }
+        }
+        .paused-animation {
+            animation-play-state: paused !important;
+        }
+        #ui-container {
+            position: absolute;
+            bottom: 10%;
+            width: 90%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+        .stats {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            color: #268bd2;
+            text-shadow: none;
+        }
+        #answer-form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            gap: 0.75rem;
+        }
+        #input-wrapper {
+             display: flex;
+             width: 100%;
+             gap: 0.5rem;
+        }
+        #answer-input, #username-input {
+            background-color: #eee8d5;
+            border: 1px solid #93a1a1;
+            color: #073642;
+            padding: 0.75rem;
+            border-radius: 8px;
+            width: 100%;
+        }
+        #answer-input::placeholder, #username-input::placeholder {
+            color: #93a1a1;
+        }
+        .btn {
+            transition: all 0.3s ease;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            border: none;
+        }
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-primary {
+            background-color: #2aa198;
+            color: #fdf6e3;
+        }
+        .btn-secondary {
+            background-color: #cb4b16;
+            color: #fdf6e3;
+        }
+        .btn-tertiary {
+            background-color: #6c71c4;
+            color: #fdf6e3;
+        }
+        .btn-quest {
+            background-color: #855d3c;
+            color: #fdf6e3;
+            font-family: 'MedievalSharp', cursive;
+            font-size: 1.5rem;
+            padding: 1rem 2rem;
+            border: 2px solid #654321;
+            box-shadow: 0 4px 0 #654321;
+        }
+        .btn-quest:hover:not(:disabled) {
+            background-color: #a07b56;
+            box-shadow: 0 2px 0 #654321;
+        }
+        #modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: none; /* Initially hidden */
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        #modal-content {
+            background: #fdf6e3;
+            padding: 2rem;
+            border-radius: 12px;
+            text-align: center;
+            border: 2px solid #2aa198;
+            box-shadow: 0 0 20px rgba(42, 161, 152, 0.4);
+        }
+        #feedback-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 5rem;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.5s ease-out;
+            z-index: 20;
+        }
+        .correct {
+            color: #859900;
+            text-shadow: 0 0 10px rgba(133, 153, 0, 0.5);
+        }
+        .incorrect {
+            color: #dc322f;
+            text-shadow: 0 0 10px rgba(220, 50, 47, 0.5);
+        }
+        #loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top: 4px solid #268bd2;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #mute-btn {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            background: rgba(0,0,0,0.05);
+            padding: 0.5rem;
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 150;
+        }
+        #mute-btn svg {
+             color: #586e75;
+        }
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+        .badge-beginner { background-color: #dc322f; }
+        .badge-intermediate { background-color: #cd7f32; }
+        .badge-advanced { background-color: #c0c0c0; }
+        .badge-master { background-color: #ffd700; }
+        .badge-ultimate {
+            background: linear-gradient(to right, #ef5350, #ff7043, #ffee58, #66bb6a, #42a5f5, #5c6bc0, #ab47bc);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+<script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+            navigator.serviceWorker.register('./service-worker.js');
+        });
+    }
+</script>
+    <!-- Login Page -->
+    <div id="login-page" class="page">
+        <h1 class="mb-4 text-2xl md:text-5xl">汝の名を<br>入力せよ</h1>
+        <form id="login-form" class="w-10/12 max-w-sm flex flex-col items-center gap-4">
+            <input type="text" id="username-input" placeholder="勇者の名前..." required>
+            <button type="submit" class="btn btn-quest">決定</button>
+        </form>
+    </div>
+
+    <!-- Top Page -->
+    <div id="top-page" class="page hidden">
+        <svg id="hero-svg" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" style="image-rendering: pixelated;">
+            <rect fill="#654321" x="6" y="2" width="4" height="1"/>
+            <rect fill="#fdf6e3" x="5" y="3" width="6" height="3"/>
+            <rect fill="#586e75" x="6" y="3" width="1" height="1"/>
+            <rect fill="#586e75" x="9" y="3" width="1" height="1"/>
+            <rect fill="#dc322f" x="4" y="6" width="8" height="4"/>
+            <rect fill="#cb4b16" x="3" y="7" width="1" height="2"/>
+            <rect fill="#c0c0c0" x="2" y="6" width="1" height="4"/>
+            <rect fill="#654321" x="6" y="10" width="1" height="3"/>
+            <rect fill="#654321" x="9" y="10" width="1" height="3"/>
+        </svg>
+        <h1 class="mb-8">目指せ！<br>リフレーミング<br>アルティメットマスター！</h1>
+        <button id="start-adventure-btn" class="btn btn-quest">冒険を始める</button>
+        <button id="logout-btn" class="mt-4 text-gray-500 underline">ログアウト</button>
+    </div>
+
+    <!-- Game Page -->
+    <div id="game-page" class="page hidden">
+        <div id="game-container">
+            <!-- Header: Score and Time -->
+            <div class="absolute top-4 left-4 stats">SCORE: <span id="score">0</span></div>
+            <div class="absolute top-12 left-4 stats text-lg text-amber-600">HI-SCORE: <span id="hi-score">0</span></div>
+            <div id="rank-display" class="absolute top-20 left-4 text-lg"></div>
+            <div class="absolute top-4 right-4 stats">TIME: <span id="time">20</span></div>
+
+            <!-- Word Animation Area -->
+            <div id="word-container">
+                <div id="word"></div>
+            </div>
+            
+            <div id="feedback-indicator"></div>
+
+            <!-- UI Controls -->
+            <div id="ui-container">
+                <form id="answer-form" class="hidden w-full">
+                    <div id="input-wrapper">
+                        <input type="text" id="answer-input" class="w-full p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400" placeholder="ポジティブに言い換えて..." autocomplete="off">
+                        <button type="button" id="mic-btn" class="btn btn-secondary p-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+                        </button>
+                    </div>
+                    <button type="button" id="pass-btn" class="btn btn-tertiary px-4 py-2">パスする (<span id="pass-count">3</span>)</button>
+                </form>
+            </div>
+
+            <!-- Modal -->
+            <div id="modal-overlay">
+                <div id="modal-content">
+                    <h2 id="modal-title" class="text-3xl font-bold mb-4"></h2>
+                    <p id="new-record-text" class="hidden text-yellow-500 font-bold text-2xl mt-2">🎉 New Record! 🎉</p>
+                    <p id="modal-text" class="text-lg my-6"></p>
+                    <div class="flex gap-4">
+                        <button id="restart-btn" class="btn btn-primary w-full p-3 text-lg">もう一度プレイ</button>
+                        <button id="back-to-top-btn" class="btn btn-tertiary w-full p-3 text-lg">トップに戻る</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Mute Button (Global) -->
+    <button id="mute-btn">
+        <svg id="speaker-on" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+        <svg id="speaker-off" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+    </button>
+
+    <script>
+        // --- PWA Service Worker Registration ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js').then(registration => {
+                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                }, err => {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
+
+        // --- DOM Elements ---
+        const loginPage = document.getElementById('login-page');
+        const loginForm = document.getElementById('login-form');
+        const usernameInput = document.getElementById('username-input');
+        const topPage = document.getElementById('top-page');
+        const gamePage = document.getElementById('game-page');
+        const startAdventureBtn = document.getElementById('start-adventure-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const scoreEl = document.getElementById('score');
+        const hiScoreEl = document.getElementById('hi-score');
+        const rankDisplayEl = document.getElementById('rank-display');
+        const timeEl = document.getElementById('time');
+        const wordEl = document.getElementById('word');
+        const answerInput = document.getElementById('answer-input');
+        const answerForm = document.getElementById('answer-form');
+        const micBtn = document.getElementById('mic-btn');
+        const passBtn = document.getElementById('pass-btn');
+        const passCountEl = document.getElementById('pass-count');
+        const modalOverlay = document.getElementById('modal-overlay');
+        const modalTitle = document.getElementById('modal-title');
+        const modalText = document.getElementById('modal-text');
+        const newRecordTextEl = document.getElementById('new-record-text');
+        const restartBtn = document.getElementById('restart-btn');
+        const backToTopBtn = document.getElementById('back-to-top-btn');
+        const feedbackIndicator = document.getElementById('feedback-indicator');
+        const muteBtn = document.getElementById('mute-btn');
+        const speakerOnIcon = document.getElementById('speaker-on');
+        const speakerOffIcon = document.getElementById('speaker-off');
+
+        // --- Game State ---
+        let score = 0;
+        const questionTimeLimit = 20;
+        let timeLeft = questionTimeLimit;
+        let passCount = 3;
+        let timerId = null;
+        let currentWord = '';
+        let isPlaying = false;
+        let isChecking = false;
+        let isMuted = false;
+        let shuffledWords = [];
+        let currentUsername = '';
+
+        // --- Game Data ---
+        const words = [
+            "仕事でミスをした", "約束を破られた", "電車が遅延した", "雨でびしょ濡れになった", "計画が失敗した", "上司に怒られた", "友達と喧嘩した", "財布を落とした", "体調が悪い", "寝坊した", "人前で恥をかいた", "悪口を言われた", "期待に応えられなかった", "また太った", "プレゼンがうまくいかなかった", "欲しいものが売り切れていた", "スマホの画面が割れた", "楽しみにしていたイベントが中止になった", "料理に失敗した", "人から誤解された", "渋滞にはまった", "忘れ物をした", "ペットにいたずらされた", "試合に負けた", "髪型が気に入らない", "上司に叱られた", "電車を乗り間違えた", "服にシミをつけた", "テストの点が悪かった", "子供が言うことを聞かない", "夜泣きがひどい", "ご飯を全然食べない", "イヤイヤ期が大変", "他の子と比べて落ち込む", "ワンオペ育児で疲れた", "つい子供に怒鳴ってしまった", "公園デビューが怖い", "ママ友付き合いが苦手", "兄弟げんかが絶えない", "自分の時間がない", "子供の好き嫌いが激しい", "頑固", "飽きっぽい", "ケチ", "心配性", "人見知り", "優柔不断", "短気", "怠け者", "悪口を言う", "仕事がつまらない", "評価されない", "給料が安い", "職場の人間関係が悪い", "昇進できない", "アイデアが通らない", "やりがいがない", "自信がない", "決断力がない", "恋人ができない", "友達が少ない", "雑談が苦手", "意見が合わない", "仲間はずれにされた", "見た目がコンプレックス", "運動不足", "部屋が汚い", "時間にルーズ", "物忘れが激しい", "SNSに疲れた", "将来が不安", "夢がない", "何をやっても中途半端", "人からどう思われるか気になる", "空気が読めない", "話が下手", "お金がない", "休みなのに疲れている", "運が悪い", "騙された", "裏切られた", "嫉妬してしまう", "孤独を感じる", "やる気が出ない", "いつもギリギリ", "朝起きるのが辛い", "人に頼るのが苦手", "断れない", "完璧主義で疲れる", "考えすぎる", "八方美人", "ネガティブ思考", "コンプレックスの塊", "すぐに諦める", "計画性がない", "三日坊主", "面倒くさがり", "口下手", "方向音痴", "運動神経が悪い", "字が汚い", "絵が下手", "歌が下手"
+        ];
+
+        // --- BGM Setup (Tone.js) ---
+        const topPageSynth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'fatsawtooth' }, envelope: { attack: 0.1, decay: 0.2, sustain: 0.6, release: 1 } }).toDestination();
+        const topPageLoop = new Tone.Sequence((time, note) => {
+            topPageSynth.triggerAttackRelease(note, '4n', time);
+        }, ['C3', ['E3', 'G3'], 'F3', ['G3', 'B3']], '2n');
+
+        const gameSynth = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+        const gamePattern = new Tone.Pattern((time, note) => {
+            gameSynth.triggerAttackRelease(note, '8n', time);
+        }, ['C5', 'E5', 'G5', 'A5', 'G5', 'E5'], 'upDown');
+        gamePattern.interval = '8n';
+
+        const gameOverSynth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'amsine' }, envelope: { attack: 0.5, decay: 0.2, sustain: 0.8, release: 2 } }).toDestination();
+        const newRecordSynth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'triangle' } }).toDestination();
+
+        // --- Web Speech API ---
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.lang = 'ja-JP';
+            recognition.interimResults = false;
+            recognition.continuous = false;
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                answerInput.value = transcript;
+                answerForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+            };
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                micBtn.disabled = false;
+            };
+            recognition.onend = () => {
+                if (isPlaying && !isChecking) {
+                    micBtn.disabled = false;
+                }
+            };
+        } else {
+            micBtn.style.display = 'none';
+        }
+
+        // --- Game Logic ---
+        function shuffleWords() {
+            shuffledWords = [...words].sort(() => 0.5 - Math.random());
+        }
+        
+        function updateRankDisplay(currentScore) {
+            const maxScore = 1000; // Theoretical max for 100 questions
+            const percentage = (currentScore / maxScore) * 100;
+            let rank = { title: 'リフレーミング初心者', badgeClass: 'badge-beginner' };
+
+            if (percentage >= 90) {
+                rank = { title: 'リフレーミングアルティメットマスター', badgeClass: 'badge-ultimate' };
+            } else if (percentage >= 70) {
+                rank = { title: 'リフレーミングマスター', badgeClass: 'badge-master' };
+            } else if (percentage >= 50) {
+                rank = { title: 'リフレーミング上級者', badgeClass: 'badge-advanced' };
+            } else if (percentage >= 20) {
+                rank = { title: 'リフレーミング中級者', badgeClass: 'badge-intermediate' };
+            }
+            
+            rankDisplayEl.innerHTML = `<span class="badge ${rank.badgeClass}">${rank.title}</span>`;
+        }
+        
+        function loadHiScore() {
+            const hiScore = localStorage.getItem(`reframingHiScore_${currentUsername}`) || 0;
+            hiScoreEl.textContent = hiScore;
+            updateRankDisplay(parseInt(hiScore, 10));
+            return parseInt(hiScore, 10);
+        }
+
+        function init() {
+            gamePage.classList.add('hidden');
+            topPage.classList.add('hidden');
+            loginPage.classList.remove('hidden');
+            modalOverlay.style.display = 'none';
+            
+            if(Tone.Transport.state === 'started') {
+                Tone.Transport.stop();
+            }
+            gameOverSynth.releaseAll();
+        }
+        
+        function showTopPage() {
+            loginPage.classList.add('hidden');
+            gamePage.classList.add('hidden');
+            topPage.classList.remove('hidden');
+            
+            if(Tone.Transport.state === 'started') {
+                Tone.Transport.stop();
+            }
+            gamePattern.stop();
+            topPageLoop.start(0);
+            Tone.Transport.start();
+            loadHiScore();
+        }
+
+        async function startGame() {
+            if (Tone.context.state !== 'running') {
+                await Tone.start();
+            }
+            
+            if(Tone.Transport.state === 'started') {
+                Tone.Transport.stop();
+            }
+            topPageLoop.stop();
+            gamePattern.start(0);
+            Tone.Transport.start();
+            
+            score = 0;
+            passCount = 3;
+            scoreEl.textContent = score;
+            passCountEl.textContent = passCount;
+            passBtn.disabled = false;
+            newRecordTextEl.classList.add('hidden');
+            shuffleWords();
+            loadHiScore();
+            
+            modalOverlay.style.display = 'none';
+            isPlaying = true;
+            isChecking = false;
+            answerForm.classList.remove('hidden');
+            answerInput.focus();
+            
+            showNewWord();
+        }
+
+        function showNewWord() {
+            clearInterval(timerId);
+            wordEl.classList.remove('paused-animation'); 
+            isChecking = false;
+            answerInput.value = '';
+            answerInput.disabled = false;
+            micBtn.disabled = false;
+            passBtn.disabled = passCount <= 0;
+            answerInput.focus();
+
+            if (shuffledWords.length === 0) {
+                shuffleWords();
+            }
+            currentWord = shuffledWords.pop();
+            wordEl.textContent = currentWord;
+
+            wordEl.style.animation = 'none';
+            void wordEl.offsetWidth;
+            wordEl.style.animation = `come-closer ${questionTimeLimit}s linear forwards`;
+            
+            startTimer();
+        }
+
+        function startTimer() {
+            timeLeft = questionTimeLimit;
+            timeEl.textContent = timeLeft;
+            timerId = setInterval(() => {
+                timeLeft--;
+                timeEl.textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(timerId);
+                    showFeedback(false);
+                    setTimeout(gameOver, 1000);
+                }
+            }, 1000);
+        }
+
+        function resumeTimer() {
+            clearInterval(timerId);
+            timerId = setInterval(() => {
+                timeLeft--;
+                timeEl.textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(timerId);
+                    showFeedback(false);
+                    setTimeout(gameOver, 1000);
+                }
+            }, 1000);
+        }
+
+        async function handleSubmit(e) {
+            e.preventDefault();
+            if (!isPlaying || isChecking) return;
+            const userAnswer = answerInput.value.trim();
+            if (userAnswer === '') return;
+
+            clearInterval(timerId);
+            isChecking = true;
+            answerInput.disabled = true;
+            micBtn.disabled = true;
+            passBtn.disabled = true;
+
+            const originalButtonContent = micBtn.innerHTML;
+            micBtn.innerHTML = '<div id="loading-spinner"></div>';
+
+            try {
+                const result = await checkReframing(currentWord, userAnswer);
+                if (result.isGoodReframing) {
+                    wordEl.classList.add('paused-animation');
+                    showFeedback(true);
+                    score += 10;
+                    scoreEl.textContent = score;
+                    setTimeout(showNewWord, 1000);
+                } else {
+                    showFeedback(false);
+                    setTimeout(() => {
+                        isChecking = false;
+                        answerInput.disabled = false;
+                        micBtn.disabled = false;
+                        passBtn.disabled = passCount <= 0;
+                        answerInput.focus();
+                        resumeTimer();
+                    }, 1000);
+                }
+            } catch (error) {
+                console.error('Error checking reframing:', error);
+                showFeedback(false);
+                 setTimeout(() => {
+                    isChecking = false;
+                    answerInput.disabled = false;
+                    micBtn.disabled = false;
+                    passBtn.disabled = passCount <= 0;
+                    answerInput.focus();
+                    resumeTimer();
+                }, 1000);
+            } finally {
+                micBtn.innerHTML = originalButtonContent;
+            }
+        }
+        
+        function handlePass() {
+            if (!isPlaying || isChecking || passCount <= 0) return;
+            passCount--;
+            passCountEl.textContent = passCount;
+            gameSynth.triggerAttackRelease('A4', '8n');
+            clearInterval(timerId);
+            showNewWord();
+        }
+
+        function showFeedback(isCorrect) {
+            feedbackIndicator.textContent = isCorrect ? 'Nice!' : 'Hmm...';
+            feedbackIndicator.classList.remove('correct', 'incorrect');
+            feedbackIndicator.classList.add(isCorrect ? 'correct' : 'incorrect');
+            feedbackIndicator.style.opacity = 1;
+            setTimeout(() => {
+                feedbackIndicator.style.opacity = 0;
+            }, 1000);
+        }
+
+        async function checkReframing(originalText, reframedText) {
+            const apiKey = "AIzaSyCYAKKl9AzwuAnEMOPX7rDRSsWmTefNyro";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            const prompt = `あなたはリフレーミング判定の専門家です。ネガティブな言葉「${originalText}」が、リフレーミング案「${reframedText}」によって、元の状況を踏まえつつポジティブな視点にうまく変換されているかを判定してください。単なる否定や無関係な発言は不適切です。判定結果を "good" または "bad" の一言で、JSON形式（例: {"result": "good"}）で回答してください。`;
+            const payload = { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } };
+            
+            try {
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
+                const result = await response.json();
+                const jsonString = result.candidates[0].content.parts[0].text;
+                const parsedResult = JSON.parse(jsonString);
+                return { isGoodReframing: parsedResult.result === 'good' };
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                return { isGoodReframing: false };
+            }
+        }
+
+        function gameOver() {
+            isPlaying = false;
+            clearInterval(timerId);
+            wordEl.classList.add('paused-animation');
+            answerForm.classList.add('hidden');
+            
+            if(Tone.Transport.state === 'started') {
+                Tone.Transport.stop();
+            }
+            gamePattern.stop();
+            gameOverSynth.triggerAttackRelease(['C3', 'E3', 'G3'], '2n');
+            
+            modalTitle.textContent = 'ゲームオーバー';
+            modalText.textContent = `あなたの最終スコアは ${score} 点です！`;
+            
+            const hiScore = loadHiScore();
+            if (score > hiScore) {
+                localStorage.setItem(`reframingHiScore_${currentUsername}`, score);
+                newRecordTextEl.classList.remove('hidden');
+                loadHiScore();
+                const now = Tone.now();
+                newRecordSynth.triggerAttackRelease(['C5', 'E5', 'G5', 'C6'], '8n', now);
+                newRecordSynth.triggerAttackRelease(['E6'], '8n', now + 0.2);
+            } else {
+                newRecordTextEl.classList.add('hidden');
+            }
+            
+            modalOverlay.style.display = 'flex';
+        }
+        
+        function toggleMute() {
+            isMuted = !isMuted;
+            Tone.Destination.mute = isMuted;
+            speakerOnIcon.classList.toggle('hidden', isMuted);
+            speakerOffIcon.classList.toggle('hidden', !isMuted);
+        }
+
+        // --- Event Listeners ---
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            currentUsername = usernameInput.value.trim();
+            if (currentUsername) {
+                localStorage.setItem('reframingCurrentUser', currentUsername);
+                if (Tone.context.state !== 'running') {
+                    await Tone.start();
+                }
+                showTopPage();
+            }
+        });
+        
+        logoutBtn.addEventListener('click', () => {
+            localStorage.removeItem('reframingCurrentUser');
+            usernameInput.value = '';
+            init();
+        });
+
+        startAdventureBtn.addEventListener('click', async () => {
+            topPage.classList.add('hidden');
+            gamePage.classList.remove('hidden');
+            startGame();
+        });
+
+        restartBtn.addEventListener('click', () => {
+            startGame();
+        });
+        
+        backToTopBtn.addEventListener('click', () => {
+            gamePage.classList.add('hidden');
+            showTopPage();
+        });
+
+        answerForm.addEventListener('submit', handleSubmit);
+        micBtn.addEventListener('click', () => {
+            if (recognition && !isChecking) {
+                micBtn.disabled = true;
+                recognition.start();
+            }
+        });
+        passBtn.addEventListener('click', handlePass);
+        muteBtn.addEventListener('click', toggleMute);
+
+        // --- Initial Load ---
+        window.onload = () => {
+            currentUsername = localStorage.getItem('reframingCurrentUser');
+            if (currentUsername) {
+                usernameInput.value = currentUsername;
+                showTopPage();
+            } else {
+                init();
+            }
+        };
+    </script>
+</body>
+</html>
