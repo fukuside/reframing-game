@@ -7,7 +7,7 @@
     
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#0ea5e9"/>
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="/reframing-game/manifest.json">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
@@ -273,7 +273,7 @@
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
-            navigator.serviceWorker.register('./service-worker.js');
+            navigator.serviceWorker.register('/reframing-game/service-worker.js');
         });
     }
 </script>
