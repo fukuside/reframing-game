@@ -820,5 +820,86 @@
             }
         };
     </script>
+    <section id="ranking" style="max-width:640px;margin:24px auto;color:#fff;">
+  <h2 style="margin:0 0 12px;">ランキング（上位20）</h2>
+  <ol id="rankList"></ol>
+</section>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import {
+    getFirestore, doc, setDoc, serverTimestamp,
+    getDocs, collection, query, orderBy, limit
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyAjMznd4LPaSy3KcjVj5gbZnyllMM8XigU",
+  authDomain: "reframing-game.firebaseapp.com",
+  projectId: "reframing-game",
+  storageBucket: "reframing-game.firebasestorage.app",
+  messagingSenderId: "1082764235640",
+  appId: "1:1082764235640:web:fef4b92b13a80ecdf5ae8d",
+  measurementId: "G-SX62V2ND76"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const { user } = await signInAnonymously(auth);
+
+  async function saveScore(username, score = 0) {
+    const safe = (username || "").toString().slice(0, 16);
+    if (!safe) return alert("名前を入力してください");
+    await setDoc(doc(db, "scores", user.uid), {
+      username: safe,
+      score: Number(score),
+      createdAt: serverTimestamp()
+    }, { merge: true });
+    await loadRanking();
+  }
+
+  async function loadRanking() {
+    const snap = await getDocs(query(collection(db, "scores"), orderBy("score", "desc"), limit(20)));
+    const list = document.getElementById("rankList");
+    list.innerHTML = "";
+    let i = 1;
+    snap.docs.forEach(d => {
+      const x = d.data();
+      const li = document.createElement("li");
+      li.textContent = `${i}. ${x.username} — ${x.score}`;
+      list.appendChild(li);
+      i++;
+    });
+  }
+
+  // 既存のUIと接続（仮ID: #playerName と #startBtn）
+  const nameInput = document.querySelector("#playerName") || document.querySelector("input");
+  const startBtn  = document.querySelector("#startBtn")  || document.querySelector("button");
+  if (nameInput && startBtn) {
+    startBtn.addEventListener("click", () => saveScore(nameInput.value, 0));
+  }
+
+  // ゲームでスコアが出たら： saveScore(playerName, finalScore) を呼ぶ
+  loadRanking();
+</script>
+
+<small style="display:block;text-align:center;color:#aab;margin:12px 0;">
+  ランキングは匿名IDで記録します。メールやIP等の個人情報は保存しません。
+</small>
+
 </body>
 </html>
